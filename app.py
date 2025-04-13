@@ -1,53 +1,55 @@
-from flask import Flask, render_template, request
-from werkzeug.utils import secure_filename
-from imageai.Prediction import ImagePrediction
 import os
+from flask import Flask, request, render_template
+from imageai.Detection import ObjectDetection
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = 'static/uploads/'
-app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg'}
 
-# Initialize ImageAI prediction
-prediction = ImagePrediction()
-prediction.setModelTypeAsResNet()
-prediction.setModelPath("resnet50_weights_tf_dim_ordering_tf_kernels.h5")
-prediction.loadModel()
+# আপলোড ফোল্ডারের পাথ
+UPLOAD_FOLDER = 'uploads'
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
+# ইমেজ ডিটেকশন মডেলের পাথ
+MODEL_PATH = 'yolov3.pt'  # আপনার ডাউনলোড করা মডেল ফাইলের পাথ দিন
+OUTPUT_PATH = 'static/output'
 
-@app.route('/')
+# যদি আপলোড এবং আউটপুট ফোল্ডার না থাকে তবে তৈরি করুন
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+if not os.path.exists(OUTPUT_PATH):
+    os.makedirs(OUTPUT_PATH)
+
+# অবজেক্ট ডিটেকশন মডেল লোড করা হচ্ছে
+detector = ObjectDetection()
+detector.setModelTypeAsYOLOv3()
+detector.setModelPath(MODEL_PATH)
+detector.loadModel()
+
+@app.route('/', methods=['GET'])
 def index():
     return render_template('index.html')
 
-@app.route('/analyze', methods=['POST'])
-def analyze_image():
+@app.route('/upload', methods=['POST'])
+def upload_file():
     if 'file' not in request.files:
-        return 'No file uploaded', 400
-    
+        return render_template('index.html', error='কোন ফাইল আপলোড করা হয়নি')
     file = request.files['file']
     if file.filename == '':
-        return 'No selected file', 400
-    
-    if file and allowed_file(file.filename):
+        return render_template('index.html', error='কোন ফাইল আপলোড করা হয়নি')
+    if file:
         filename = secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
 
-        # Perform image prediction
-        predictions, probabilities = prediction.predictImage(filepath, result_count=5)
-        
-        result = []
-        for pred, prob in zip(predictions, probabilities):
-            result.append(f"{pred} ({prob:.2f}%)")
-        
-        return render_template('index.html', 
-                             uploaded_image=filename,
-                             predictions=result)
-    
-    return 'Invalid file type', 400
+        output_filename = f"detected_{filename}"
+        output_filepath = os.path.join(OUTPUT_PATH, output_filename)
+
+        detections = detector.detectObjectsFromImage(input_image=filepath, output_image_path=output_filepath)
+
+        detected_objects = [detection["name"] for detection in detections]
+
+        return render_template('index.html', filename=output_filename, objects=detected_objects)
 
 if __name__ == '__main__':
-    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    app.run(debug=False, host='0.0.0.0', port=5000)
+    app.run(host="0.0.0.0", port=5000, debug=True)
+    
