@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <title>ছবি বিশ্লেষণ অ্যাপ</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+        input[type="file"] { margin: 20px; }
+        .result { margin-top: 30px; font-size: 20px; color: green; }
+    </style>
+</head>
+<body>
+    <h1>ছবি আপলোড করুন</h1>
+    <form method="POST" enctype="multipart/form-data">
+        <input type="file" name="image" accept="image/*" required>
+        <br>
+        <input type="submit" value="বিশ্লেষণ করুন">
+    </form>
+
+    {% if result %}
+        <div class="result">
+            <p>{{ result }}</p>
+        </div>
+    {% endif %}
+</body>
+</html>
