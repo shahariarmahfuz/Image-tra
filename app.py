@@ -1,43 +1,53 @@
 from flask import Flask, render_template, request
 from werkzeug.utils import secure_filename
+from imageai.Prediction import ImagePrediction
 import os
-from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2, decode_predictions, preprocess_input
-from tensorflow.keras.preprocessing import image
-import numpy as np
 
 app = Flask(__name__)
-UPLOAD_FOLDER = 'uploads'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['UPLOAD_FOLDER'] = 'static/uploads/'
+app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg'}
 
-# Ensure upload folder exists
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+# Initialize ImageAI prediction
+prediction = ImagePrediction()
+prediction.setModelTypeAsResNet()
+prediction.setModelPath("resnet50_weights_tf_dim_ordering_tf_kernels.h5")
+prediction.loadModel()
 
-# Load pretrained model
-model = MobileNetV2(weights='imagenet')
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
-@app.route('/', methods=['GET', 'POST'])
-def upload_file():
-    if request.method == 'POST':
-        file = request.files['image']
-        if file:
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(filepath)
-            result = analyze_image(filepath)
-            return render_template('index.html', result=result)
+@app.route('/')
+def index():
     return render_template('index.html')
 
-def analyze_image(image_path):
-    img = image.load_img(image_path, target_size=(224, 224))
-    x = image.img_to_array(img)
-    x = np.expand_dims(x, axis=0)
-    x = preprocess_input(x)
+@app.route('/analyze', methods=['POST'])
+def analyze_image():
+    if 'file' not in request.files:
+        return 'No file uploaded', 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return 'No selected file', 400
+    
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
 
-    preds = model.predict(x)
-    decoded = decode_predictions(preds, top=1)[0][0]
-    label = decoded[1]
-    confidence = decoded[2] * 100
-    return f"ছবিতে সম্ভবত: {label} (নিশ্চয়তা: {confidence:.2f}%)"
+        # Perform image prediction
+        predictions, probabilities = prediction.predictImage(filepath, result_count=5)
+        
+        result = []
+        for pred, prob in zip(predictions, probabilities):
+            result.append(f"{pred} ({prob:.2f}%)")
+        
+        return render_template('index.html', 
+                             uploaded_image=filename,
+                             predictions=result)
+    
+    return 'Invalid file type', 400
 
 if __name__ == '__main__':
-    app.run(host="0.0.0.0", port=8080, debug=True)
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    app.run(debug=False, host='0.0.0.0', port=5000)
