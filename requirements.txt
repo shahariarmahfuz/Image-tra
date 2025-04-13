@@ -1,5 +1,8 @@
-flask
-werkzeug
-imageai
-tensorflow
-pillow
+flask==2.0.1
+werkzeug==2.0.1
+imageai==2.1.6
+tensorflow==2.6.0
+pillow==8.3.1
+numpy==1.19.5
+h5py==2.10.0
+keras==2.6.0
