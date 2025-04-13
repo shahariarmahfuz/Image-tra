@@ -1,8 +1,7 @@
-flask
-werkzeug
+Flask
+
 imageai
-tensorflow
-pillow
-numpy
-h5py
-keras
+
+Pillow
+
+Werkzeug
